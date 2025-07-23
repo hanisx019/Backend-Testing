@@ -2,27 +2,70 @@
 const Student = require("../models/Student");
 const express = require("express");
 const router = express.Router();
-
+const {jwtAuthMiddleware,generateToken}=require('../jwt')
 // const bodyParser = require('body-parser')
 // app.use(bodyParser.json())
 
 
-//post student data
-router.post("/", async(req, res) => {
+//post student data using signup
+router.post("/signup", async(req, res) => {
     try {
         const data = req.body
         const studentData =Student(data)
         const response = await studentData.save() 
         console.log("Response Fetched Successfully")
-        res.status(200).json(response);        
+
+        const payLoad={
+            id:response.id,
+            username:response.username
+        }
+        console.log(JSON.stringify(payLoad))
+        const token=generateToken(payLoad)
+        console.log("token is:",token)
+        res.status(200).json({response:response,token:token});        
     } catch (error) {
         console.log(error)
         res.status(500).json({error:'Server not found'});
     }
 });
 
+
+//post student data using login
+router.post('/login',async (req,res)=>{
+    try {
+        const{username,password}=req.body
+        const user=await Student.findOne({username:username})
+        if(!user || !(await user.comparePassword(password))){
+            return res.status(401).json({error:'Invalid Username or Password'})
+        }
+        const payLoad={
+            id:user.id,
+            username:username
+        }
+        const token=generateToken(payLoad);
+        res.json({token})
+    } catch (error) {
+        console.log(error)
+        res.status(500).json({error:'Internal Server Error'});
+    }
+})
+
+router.get('/profile',jwtAuthMiddleware,async(req,res)=>{
+    try {
+        const userData=req.user
+        console.log("user Data",userData)
+        const userId=userData.id;
+        const user=await Student.findById(userId)
+        res.status(200).json({user})
+    } catch (error) {
+        console.log(error)
+        res.status(500).json({error:'Internal Server Error'});
+    }
+})
+
+
 //get student data
-router.get("/", async(req, res) => {
+router.get("/", jwtAuthMiddleware,async(req, res) => {
     try {
         const data =await Student.find()
         console.log("Response Fetched Successfully")
